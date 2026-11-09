@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="description" content="Interactive road homography calibration with a bird's-eye view and metric 3D camera visualization.">
+  <title>GroundLab — Homography Studio</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">
+  {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.181.2/examples/jsm/"}}
+  </script>
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-icon">⌗</span><span><strong>GroundLab</strong><small>HOMOGRAPHY STUDIO</small></span></div>
+    <div class="topbar-actions"><span class="privacy"><span class="privacy-dot"></span> Local processing · nothing uploaded</span><a class="text-link" href="https://github.com/Persie0/homographyPage" target="_blank" rel="noopener">GitHub ↗</a><button id="guideOpen" class="button button-outline">How it works</button></div>
+  </header>
+  <main class="app-shell">
+    <section class="hero">
+      <div><p class="eyebrow">CAMERA CALIBRATION / TRAFFIC ANALYTICS</p><h1>From camera pixels to <em>real-world meters.</em></h1><p class="subtitle">Mark a rectangle on the flat road, enter its measured dimensions, and inspect the bird's-eye transform and 3D scene before exporting to traffic-counting.</p></div>
+      <span id="overallStatus" class="status status-muted">Upload a road image to begin</span>
+    </section>
+    <div class="workspace">
+      <aside class="sidebar">
+        <section class="panel step-panel">
+          <div class="step-heading"><span class="step-index">01</span><div><h2>Source image</h2><p>Use your camera's background.jpg</p></div></div>
+          <label class="upload-area" id="dropzone" for="fileInput"><span class="upload-glyph">⇧</span><b>Drop image here or browse</b><span>PNG, JPEG, WebP · stays in browser</span></label>
+          <input id="fileInput" class="sr-only" type="file" accept="image/png,image/jpeg,image/webp,image/bmp">
+          <div class="file-meta" id="imageMeta" aria-live="polite">No image loaded</div>
+          <div class="row-actions"><button id="demoButton" class="button button-secondary">Try example</button><button id="projectLoadButton" class="button button-ghost">Import project</button><input type="file" id="projectInput" class="sr-only" accept=".json,application/json"></div>
+        </section>
+        <section class="panel step-panel">
+          <div class="step-heading"><span class="step-index">02</span><div><h2>Match four corners</h2><p>Drag markers to ground-level points</p></div></div>
+          <p class="helper">Select the same flat rectangular road area you'd measure in meters. Avoid vehicles and the sky.</p>
+          <div id="pointList" class="point-list">
+            <div class="point-row"><span class="point-dot">1</span><span>Near left</span></div>
+            <div class="point-row"><span class="point-dot">2</span><span>Near right</span></div>
+            <div class="point-row"><span class="point-dot">3</span><span>Far right</span></div>
+            <div class="point-row"><span class="point-dot">4</span><span>Far left</span></div>
+          </div>
+          <div class="tip"><strong>Tip:</strong> All four marks must touch the same flat ground plane—not the tops of cars, curbs, or a sloped surface.</div>
+        </section>
+        <section class="panel step-panel">
+          <div class="step-heading"><span class="step-index">03</span><div><h2>Real-world dimensions</h2><p>Measured ground distances, in meters</p></div></div>
+          <div class="fields-two"><label>Road width <span>m</span><input type="number" id="widthMeters" value="7" min="0.1" max="200" step="0.1"></label><label>Road length <span>m</span><input type="number" id="lengthMeters" value="25" min="0.1" max="500" step="0.5"></label></div>
+          <p class="helper">Width: left to right. Length: near to far. An arbitrary rectangle without measured distances cannot produce accurate speed or distance.</p>
+          <div class="field-block"><label for="hfov">Camera horizontal FOV <output id="fovValue">75°</output></label><input type="range" id="hfov" min="25" max="130" step="1" value="75"><p class="helper">Affects only the estimated 3D camera pose—not the homography matrix.</p></div>
+        </section>
+        <section class="panel step-panel">
+          <div class="step-heading"><span class="step-index">04</span><div><h2>Check & export</h2><p>Compatible with traffic-counting</p></div></div>
+          <div id="checks" class="checks" aria-live="polite">Load an image to start calibration.</div>
+          <div class="export-actions"><button class="button button-primary" id="exportCfg" disabled>↓ Download .cfg matrix</button><button class="button button-secondary" id="exportProject" disabled>↓ Save project JSON</button><button class="button button-ghost" id="exportBev" disabled>↓ Save BEV PNG</button></div>
+          <p class="helper">Install matrix as <code>~/.config/traffic-counting/homography_matrix_manual.cfg</code>. Use image coordinates from the same processing stage and resolution as the runtime camera frame.</p>
+        </section>
+      </aside>
+      <div class="visuals">
+        <div class="two-up">
+          <section class="panel viewport">
+            <div class="viewport-head"><div><span class="eyebrow">A / CAMERA VIEW</span><h2>Original perspective</h2></div><span class="mini-pill">Drag ①–④</span></div>
+            <div class="canvas-wrap source-wrap" id="sourceWrap"><canvas id="sourceCanvas" aria-label="Camera image with draggable calibration points"></canvas><div id="sourcePlaceholder" class="placeholder"><span class="placeholder-art">▱</span><b>Your road image goes here</b><span>Upload background.jpg or open the demo</span></div></div>
+            <div class="viewport-foot"><span>Colored polygon = ground plane to calibrate</span><span id="imageDims">—</span></div>
+          </section>
+          <section class="panel viewport">
+            <div class="viewport-head"><div><span class="eyebrow">B / RECTIFIED ROAD</span><h2>Bird's-eye view</h2></div><span class="mini-pill" id="bevSizeLabel">METERS</span></div>
+            <div class="canvas-wrap bev-wrap" id="bevWrap"><canvas id="bevCanvas" aria-label="Rectified road with metric grid and cars"></canvas><div id="bevPlaceholder" class="placeholder"><span class="placeholder-art">⊞</span><b>BEV preview</b><span>Perspective-corrected road appears here</span></div></div>
+            <div class="viewport-foot"><span>Grid = 5 m · Tap two locations to measure</span><span id="measureResult">—</span></div>
+          </section>
+        </div>
+        <section class="panel viewport scene-panel">
+          <div class="viewport-head"><div><span class="eyebrow">C / INTERACTIVE 3D DIGITAL TWIN</span><h2>Camera, road & traffic in 3D</h2><p>Orbit with drag · zoom with scroll · car positions follow the calibrated ground plane.</p></div><div class="scene-actions"><button id="addCar" class="button button-secondary" disabled>+ Place car</button><button id="clearCars" class="button button-ghost" disabled>Clear cars</button><button id="reset3d" class="button button-outline" disabled>Reset view</button></div></div>
+          <div class="scene-viewport" id="scene3d"><div class="scene-fallback" id="sceneMessage">Loading 3D renderer…</div></div>
+          <div class="scene-legend"><span><i class="legend-color camera-color"></i> Estimated camera / rays</span><span><i class="legend-color road-color"></i> Ground plane</span><span><i class="legend-color car-color"></i> Movable cars</span><span id="cameraEstimate">Camera pose depends on the assumed field of view.</span></div>
+        </section>
+        <div class="bottom-guide panel">
+          <div><span class="eyebrow">QUALITY CHECK</span><h2>What should a correct result look like?</h2><p>The road's painted parallel lines should look approximately parallel and straight, the 5 m grid should follow the actual surface, and cars should occupy realistic ground distances. A bird's-eye image can look convincing even if the metric scale is wrong: verify using a second known length or real vehicle motion.</p></div>
+          <button class="button button-secondary" id="guideBottom">Open guided tutorial →</button>
+        </div>
+      </div>
+    </div>
+  </main>
+  <dialog id="tutorial" class="tutorial"><div class="dialog-head"><span class="eyebrow">GUIDED CALIBRATION</span><button id="guideClose" class="close-button" aria-label="Close tutorial">✕</button></div><div class="dialog-body"><span id="tutorialStep" class="tutorial-step">STEP 1 / 6</span><h2 id="tutorialTitle">Choose the correct image</h2><p id="tutorialBody"></p><div id="tutorialDiagram" class="tutorial-diagram"></div><p id="tutorialWarning" class="tutorial-warning"></p></div><div class="dialog-footer"><button id="tutorialBack" class="button button-ghost">Back</button><button id="tutorialNext" class="button button-primary">Next →</button></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
