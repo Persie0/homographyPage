@@ -1,0 +1,13 @@
+{
+  "name": "groundlab-homography-studio",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "No-build GitHub Pages road homography calibration studio",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
