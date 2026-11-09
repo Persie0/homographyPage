@@ -21,7 +21,8 @@ function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
 async function readImageDataUrl(data,name,restored=null){
   if(!/^data:image\/(png|jpeg|webp|bmp);base64,/i.test(data))throw Error('Only PNG, JPEG, WebP or BMP images are supported');
   const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Could not read image'));img.src=data;});
-  if(!img.naturalWidth||!img.naturalHeight||img.naturalWidth>14000||img.naturalHeight>14000)throw Error('Unsupported image size');
+  if(!img.naturalWidth||!img.naturalHeight||img.naturalWidth>14000||img.naturalHeight>14000||img.naturalWidth*img.naturalHeight>50000000)throw Error('Unsupported image size (max 50 megapixels)');
+  if(restored?.expectedImageWidth&&(img.naturalWidth!==restored.expectedImageWidth||img.naturalHeight!==restored.expectedImageHeight))throw Error('Project image dimensions do not match its saved calibration');
   state.image=img;state.dataUrl=data;state.imageName=name;state.points=restored?.points||defaultPoints(img.naturalWidth,img.naturalHeight);state.width=restored?.width??state.width;state.length=restored?.length??state.length;state.hfov=restored?.hfov??state.hfov;state.cars=restored?.cars||[];state.selected=0;state.measurement=[];state.H=null;
   $('widthMeters').value=state.width;$('lengthMeters').value=state.length;$('hfov').value=state.hfov;$('fovValue').textContent=state.hfov+'°';
   // Source buffer may be downscaled for fast pixel sampling, WITHOUT changing calibration coordinates.
@@ -221,8 +222,7 @@ $('projectInput').addEventListener('change',async e=>{
     const width=Number(c.widthMeters),length=Number(c.lengthMeters),hfov=Number(c.hfovDegrees);
     if(!(width>0&&width<=200&&length>0&&length<=500&&hfov>=25&&hfov<=130))throw Error('Invalid project dimensions.');
     const cars=c.cars.slice(0,100).filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&Math.abs(p.x)<=width/2&&p.y>=0&&p.y<=length);
-    await readImageDataUrl(i.dataUrl,typeof i.name==='string'?i.name.slice(0,100):'restored-image',{points:c.points,width,length,hfov,cars});
-    if(state.image.naturalWidth!==i.width||state.image.naturalHeight!==i.height)throw Error('Imported image dimensions do not match saved project.');
+    await readImageDataUrl(i.dataUrl,typeof i.name==='string'?i.name.slice(0,100):'restored-image',{points:c.points,width,length,hfov,cars,expectedImageWidth:i.width,expectedImageHeight:i.height});
     toast('Project restored.');}catch(err){toast('Import failed: '+err.message);}
   e.target.value='';
 });
